@@ -1,5 +1,7 @@
 # Medical Query Assistant
 
+🔗 **Live Demo:** [https://med-query-pal.vercel.app/](https://med-query-pal.vercel.app/)
+
 This project is a Vite + React + TypeScript application designed to serve as a Medical Query Assistant.
 
 ## 🚀 Features
@@ -55,6 +57,11 @@ VITE_SUPABASE_URL=your_url
 VITE_SUPABASE_ANON_KEY=your_key
 GEMINI_API_KEY=your_api_key
 ```
+
+## ✅ Notes
+
+* Lovable AI integration has been **removed**
+* Now uses **Gemini API directly** for chat responses
 
 ## 📞 Support
 
