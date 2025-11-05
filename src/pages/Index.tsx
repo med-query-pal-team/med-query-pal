@@ -23,20 +23,6 @@ const Index = () => {
     return () => subscription.unsubscribe();
   }, []);
 
-  useEffect(() => {
-    // Generate embeddings on first load
-    const generateEmbeddings = async () => {
-      try {
-        await supabase.functions.invoke('generate-embeddings');
-      } catch (error) {
-        console.error('Error generating embeddings:', error);
-      }
-    };
-    
-    if (session) {
-      generateEmbeddings();
-    }
-  }, [session]);
 
   if (loading) {
     return (

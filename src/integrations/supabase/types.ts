@@ -75,9 +75,9 @@ export type Database = {
           category: string | null
           content: string
           created_at: string
-          embedding: string | null
           id: string
           metadata: Json | null
+          search_vector: unknown
           title: string
           updated_at: string
         }
@@ -85,9 +85,9 @@ export type Database = {
           category?: string | null
           content: string
           created_at?: string
-          embedding?: string | null
           id?: string
           metadata?: Json | null
+          search_vector?: unknown
           title: string
           updated_at?: string
         }
@@ -95,9 +95,9 @@ export type Database = {
           category?: string | null
           content?: string
           created_at?: string
-          embedding?: string | null
           id?: string
           metadata?: Json | null
+          search_vector?: unknown
           title?: string
           updated_at?: string
         }
@@ -108,20 +108,31 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      match_medical_documents: {
-        Args: {
-          match_count?: number
-          match_threshold?: number
-          query_embedding: string
-        }
-        Returns: {
-          category: string
-          content: string
-          id: string
-          similarity: number
-          title: string
-        }[]
-      }
+      match_medical_documents:
+        | {
+            Args: { match_count?: number; search_query: string }
+            Returns: {
+              category: string
+              content: string
+              id: string
+              similarity: number
+              title: string
+            }[]
+          }
+        | {
+            Args: {
+              match_count?: number
+              match_threshold?: number
+              query_embedding: string
+            }
+            Returns: {
+              category: string
+              content: string
+              id: string
+              similarity: number
+              title: string
+            }[]
+          }
     }
     Enums: {
       [_ in never]: never

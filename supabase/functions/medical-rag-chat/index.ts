@@ -25,37 +25,12 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Step 1: Generate embedding for the user's query
-    console.log('Generating embedding for query...');
-    const embeddingResponse = await fetch('https://ai.gateway.lovable.dev/v1/embeddings', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        input: message,
-        model: 'text-embedding-3-small'
-      }),
-    });
-
-    if (!embeddingResponse.ok) {
-      const error = await embeddingResponse.text();
-      console.error('Embedding API error:', error);
-      throw new Error('Failed to generate embedding');
-    }
-
-    const embeddingData = await embeddingResponse.json();
-    const queryEmbedding = embeddingData.data[0].embedding;
-    console.log('Embedding generated successfully');
-
-    // Step 2: Search for relevant medical documents using vector similarity
+    // Step 1: Search for relevant medical documents using full-text search
     console.log('Searching for relevant medical documents...');
     const { data: relevantDocs, error: searchError } = await supabase.rpc(
       'match_medical_documents',
       {
-        query_embedding: queryEmbedding,
-        match_threshold: 0.3,
+        search_query: message,
         match_count: 3
       }
     );
@@ -67,14 +42,14 @@ serve(async (req) => {
 
     console.log('Found relevant documents:', relevantDocs?.length || 0);
 
-    // Step 3: Construct context from relevant documents
+    // Step 2: Construct context from relevant documents
     const context = relevantDocs && relevantDocs.length > 0
       ? relevantDocs.map((doc: any) => 
           `Document: ${doc.title} (Category: ${doc.category})\n${doc.content}`
         ).join('\n\n')
       : 'No specific medical information found in the knowledge base.';
 
-    // Step 4: Get conversation history
+    // Step 3: Get conversation history
     let conversationHistory: Array<{ role: string; content: string }> = [];
     if (conversationId) {
       const { data: messages } = await supabase
@@ -87,7 +62,7 @@ serve(async (req) => {
       conversationHistory = messages || [];
     }
 
-    // Step 5: Generate AI response using RAG
+    // Step 4: Generate AI response using RAG
     console.log('Generating AI response...');
     const systemPrompt = `You are a helpful medical assistant. You provide information based on medical knowledge, but you always remind users that your advice is for informational purposes only and they should consult with healthcare professionals for medical decisions.
 
