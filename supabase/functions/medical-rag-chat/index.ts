@@ -2,134 +2,93 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
+  if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     const { message, conversationId } = await req.json();
-    console.log('Received message:', message);
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const GEMINI_API_KEY = Deno.env.get("GEMINI_API_KEY");
+    const GEMINI_API_URL = "https://your-gemini-endpoint.com/v1/chat/completions"; 
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
-    }
+    if (!GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not configured");
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Step 1: Search for relevant medical documents using full-text search
-    console.log('Searching for relevant medical documents...');
+    // Search relevant medical docs
     const { data: relevantDocs, error: searchError } = await supabase.rpc(
-      'match_medical_documents',
+      "match_medical_documents",
       {
         search_query: message,
-        match_count: 3
-      }
+        match_count: 3,
+      },
     );
 
-    if (searchError) {
-      console.error('Search error:', searchError);
-      throw searchError;
-    }
+    if (searchError) throw searchError;
 
-    console.log('Found relevant documents:', relevantDocs?.length || 0);
+    const context = relevantDocs?.length
+      ? relevantDocs.map(
+          (doc: any) =>
+            `Document: ${doc.title} (Category: ${doc.category})\n${doc.content}`,
+        ).join("\n\n")
+      : "No specific medical information found.";
 
-    // Step 2: Construct context from relevant documents
-    const context = relevantDocs && relevantDocs.length > 0
-      ? relevantDocs.map((doc: any) => 
-          `Document: ${doc.title} (Category: ${doc.category})\n${doc.content}`
-        ).join('\n\n')
-      : 'No specific medical information found in the knowledge base.';
-
-    // Step 3: Get conversation history
-    let conversationHistory: Array<{ role: string; content: string }> = [];
+    // previous messages
+    let conversationHistory = [];
     if (conversationId) {
       const { data: messages } = await supabase
-        .from('chat_messages')
-        .select('role, content')
-        .eq('conversation_id', conversationId)
-        .order('created_at', { ascending: true })
+        .from("chat_messages")
+        .select("role, content")
+        .eq("conversation_id", conversationId)
+        .order("created_at", { ascending: true })
         .limit(10);
-      
       conversationHistory = messages || [];
     }
 
-    // Step 4: Generate AI response using RAG
-    console.log('Generating AI response...');
-    const systemPrompt = `You are a helpful medical assistant. You provide information based on medical knowledge, but you always remind users that your advice is for informational purposes only and they should consult with healthcare professionals for medical decisions.
+    const systemPrompt =
+      `You are a medical assistant. Provide medical guidance based on the context below, but remind the user this is not medical advice and they should consult a doctor.\n\nContext:\n${context}`;
 
-When answering questions, use the following medical knowledge context if relevant:
-
-${context}
-
-If the context doesn't contain relevant information, provide general medical knowledge but emphasize the importance of consulting a healthcare provider. Always be compassionate, clear, and professional.`;
-
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
+    // Gemini API call
+    const response = await fetch(GEMINI_API_URL, {
+      method: "POST",
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
+        "Authorization": `Bearer ${GEMINI_API_KEY}`,
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
+        model: "google/gemini-2.5-flash",
         messages: [
-          { role: 'system', content: systemPrompt },
+          { role: "system", content: systemPrompt },
           ...conversationHistory,
-          { role: 'user', content: message }
+          { role: "user", content: message },
         ],
         stream: true,
       }),
     });
 
-    if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ 
-          error: 'Rate limit exceeded. Please try again in a moment.' 
-        }), {
-          status: 429,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ 
-          error: 'AI service credits depleted. Please add credits to continue.' 
-        }), {
-          status: 402,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      const errorText = await response.text();
-      console.error('AI API error:', response.status, errorText);
-      throw new Error('AI service error');
-    }
-
-    // Return the streaming response
     return new Response(response.body, {
-      headers: { 
-        ...corsHeaders, 
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "text/event-stream",
       },
     });
-
   } catch (error) {
-    console.error('Error in medical-rag-chat:', error);
+    console.error("Error:", error);
     return new Response(
-      JSON.stringify({ 
-        error: error instanceof Error ? error.message : 'An unexpected error occurred' 
-      }), {
+      JSON.stringify({ error: error.message }),
+      {
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
     );
   }
 });
